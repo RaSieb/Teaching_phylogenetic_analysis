@@ -31,7 +31,7 @@ library(ggtree)
 ```{r load-tree}
 # Load the phylogenetic tree from a file
 # Replace with the correct path to your tree file
-tree <- read.tree("../iqtree/core_stripped.filtered_polymorphic_sites.fasta.treefile")
+tree <- read.tree(file.path("data", "core_stripped.filtered_polymorphic_sites.fasta.treefile"))
 
 # Plot the initial unrooted tree
 plot(tree)
@@ -58,7 +58,7 @@ plot(rooted)
 ```{r load-metadata}
 # Load metadata for the strains
 # Replace with the correct path to your metadata file
-meta <- read.delim("../metadata.tsv", sep='\t')
+meta <- read.delim(file.path("data", "metadata.tsv"), sep='\t')
 ```
 
 ## Group and Process Metadata
@@ -143,7 +143,7 @@ r
 ```{r save-circular-tree}
 # Save the circular tree as a PDF
 ggsave(r, width = 8, height = 8, device = cairo_pdf,
-       file=file.path('./', paste0("Tree_circ_w_clusters_", Sys.Date(), ".pdf")),
+       file=file.path('results', paste0("Tree_circ_w_clusters_", Sys.Date(), ".pdf")),
        family = "sans", bg=NA)
 ```
 
@@ -237,6 +237,6 @@ r
 
 ```{r save-rectangular-tree}
 ggsave(r, width = 12, height = 42, device = cairo_pdf,
-       file=file.path('./', paste0("Tree_rect_w_clusters_", Sys.Date(), ".pdf")),
+       file=file.path('results', paste0("Tree_rect_w_clusters_", Sys.Date(), ".pdf")),
        family = "sans", bg=NA)
 ```

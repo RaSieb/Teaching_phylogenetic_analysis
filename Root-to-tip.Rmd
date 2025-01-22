@@ -1,0 +1,85 @@
+---
+title: "root-to-tip-analysis"
+output: html_document
+date: "`r Sys.Date()`"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Perform a root-to-tip analysis using R
+
+```{r load packages}
+library(tidyverse)
+library(phytools)
+```
+
+```{r load the tree}
+phy <- read.tree(file.path("data", "core_stripped.filtered_polymorphic_sites.fasta.treefile"))
+plot(phy)
+rooted <- reroot(phy, node.number = getMRCA(phy = phy, c(
+  "SRR27240808",
+  "SRR27240815",
+  "SRR27240809",
+  "SRR27240826",
+  "SRR27240827",
+  "SRR27240813",
+  "SRR27240814",
+  "SRR27240817",
+  "SRR27240822",
+  "SRR27240818",
+  "SRR27240819"
+)),position = 0.0015)
+plot(rooted)
+add.scale.bar()
+```
+
+## Export the rooted tree
+
+```{r export-rooted-tree}
+write.tree(rooted, file = file.path('results', 'core_stripped.filtered_polymorphic_sites.fasta.treefile.rooted.nwk'))
+```
+
+## Load metadata
+
+```{r load-metadata}
+meta <- read.delim(file.path("data", "metadata.tsv"), sep='\t') %>%
+  mutate(
+    date = paste(date, '01', sep='-')
+  )
+meta
+```
+
+## Get tip dates
+
+```{r get-tip-dates}
+tip.dates <- as.Date(meta[match(phy$tip.label, meta$strain), ]$date, format="%Y-%m-%d")
+```
+
+## Get divergence from root
+
+```{r get-divergence}
+div <- node.depth.edgelength(rooted)[1:Ntip(rooted)]
+```
+
+## Get the correlation between divergence and date
+
+```{r lm}
+m <- lm(div ~ tip.dates)
+```
+
+## Plot divergence vs. sample dates
+
+```{r plot-data}
+plot(tip.dates, div, xlim=c(as.Date("2015-01-01"), max(tip.dates, na.rm = T)),
+     ylim=c(0, max(div)))
+abline(m)
+```
+
+## Get the correlation coefficient R^2^
+
+```{r get-r-squared}
+summary(m)$r.squared
+```
+>**Note:** This is a very bad correlation and a negative slope. To properly infer phylogenetic time scales, a high R^2^ and a positive slope is required.  
