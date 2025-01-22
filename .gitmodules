@@ -1,0 +1,3 @@
+[submodule "GenEpi-BioTrain_Virtual_Training_7"]
+	path = GenEpi-BioTrain_Virtual_Training_7
+	url = git@github.com:ssi-dk/GenEpi-BioTrain_Virtual_Training_7.git
