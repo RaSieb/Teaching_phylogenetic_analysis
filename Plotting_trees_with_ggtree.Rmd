@@ -1,0 +1,242 @@
+---
+title: "Plotting trees with ggtree"
+author: Raphael Sieber
+affiliation: Statens Serum Institut
+output: html_document
+date: "`r Sys.Date()`"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+# Introduction
+
+This is an example script for plotting a phylogenetic tree with cluster highlights and metadata annotations. The analysis involves loading and rooting the tree, preparing metadata, and visualizing the tree in both circular and rectangular layouts.
+
+# Load Required Packages
+
+```{r load-packages}
+# Load the necessary libraries
+library(tidyverse)
+library(phytools)
+library(ggtree)
+```
+
+# Load and Prepare the Phylogenetic Tree
+
+## Load the Tree
+
+```{r load-tree}
+# Load the phylogenetic tree from a file
+# Replace with the correct path to your tree file
+tree <- read.tree("../iqtree/core_stripped.filtered_polymorphic_sites.fasta.treefile")
+
+# Plot the initial unrooted tree
+plot(tree)
+```
+
+## Root the Tree
+
+```{r root-tree}
+# Root the tree at a specific node defined by a group of strains
+rooted <- reroot(tree, node.number = getMRCA(phy = tree, c(
+  "SRR27240808", "SRR27240815", "SRR27240809", "SRR27240826",
+  "SRR27240827", "SRR27240813", "SRR27240814", "SRR27240817",
+  "SRR27240822", "SRR27240818", "SRR27240819"
+)), position = 0.0015)
+
+# Plot the newly rooted tree
+plot(rooted)
+```
+
+# Load and Prepare Metadata
+
+## Load Metadata
+
+```{r load-metadata}
+# Load metadata for the strains
+# Replace with the correct path to your metadata file
+meta <- read.delim("../metadata.tsv", sep='\t')
+```
+
+## Group and Process Metadata
+
+```{r process-metadata}
+# Group the metadata by clusters and find the MRCA for each cluster
+clusters <- meta %>%
+  group_by(SNPCluster) %>%
+  mutate(cl_mrca = getMRCA(rooted, strain)) %>%
+  filter(!is.na(SNPCluster))
+
+# Display the clustered metadata
+clusters
+```
+
+
+# Define colors and functions
+## Define cluster colors
+
+```{r define-colors}
+cl_cols <- c(`ST1#1`="#1F78C8", `ST1#10_1`="#33a02c", `ST1#10_2`="#FFD700",
+             `ST1#11`="#ff7f00", `ST1#9`="#6A33C2")
+```
+
+## Define helper Function
+This function puts the cluster highlights in the background, so they don't cover for branches and labels.  
+
+```{r helper-functions}
+# Helper function to bring highlight layers to the back
+highlight_to_back <- function(p){
+  pl <- p
+  hl <- sapply(pl$layers, function(x) grepl("Hilight", class(x$geom)[1]))
+  pl$layers <- c(pl$layers[hl], pl$layers[!hl])
+  return(pl)
+}
+```
+
+# Circular Phylogenetic Tree
+
+## Create Circular Tree
+
+```{r circular-tree-creation}
+# Create a circular tree with ggtree
+p <- ggtree(rooted, layout="c", right = TRUE, lwd=0.4, show.legend = FALSE, open.angle = 10)
+
+# Rotate the tree slightly for better visualization
+q <- rotate_tree(p, angle = 10) %>%
+  groupClade(clusters$cl_mrca, 'cl') +
+  geom_tippoint(size=0.6, show.legend = FALSE) +
+  geom_cladelab(
+    data = clusters,
+    mapping=aes(node=cl_mrca, label=SNPCluster, color=SNPCluster),
+    fontsize = 4, align = TRUE, show.legend = FALSE, barcolour=NA, hjust = 0.5, offset = 0.0015
+  ) +
+  scale_color_manual(values = cl_cols) +
+  scale_fill_manual(values = cl_cols) +
+  xlim(-0.002, 0.01) +
+  geom_hilight(
+    data = clusters, mapping=aes(node=cl_mrca, fill=SNPCluster),
+    extendto= max(p$data$x)
+  ) +
+  geom_tiplab(align = TRUE, offset = 0.002, size = 3) +
+  geom_treescale(width = 0.001, y = Ntip(rooted), x = 0.0001) +
+  geom_rootedge(rootedge = 0.001)
+```
+
+## Adjust Highlights
+
+```{r move-highlights-to-back}
+# Adjust the order of highlighted layers
+r <- q %>% highlight_to_back()
+```
+
+## Plot circular tree
+
+```{r plot-circular-tree}
+r
+```
+
+## Save circular tree
+
+```{r save-circular-tree}
+# Save the circular tree as a PDF
+ggsave(r, width = 8, height = 8, device = cairo_pdf,
+       file=file.path('./', paste0("Tree_circ_w_clusters_", Sys.Date(), ".pdf")),
+       family = "sans", bg=NA)
+```
+
+# Rectangular Phylogenetic Tree
+
+## Setup for Metadata Annotations
+
+```{r rectangular-tree-setup}
+# Table setup for metadata annotations
+tab_cols <- c("SamplingDate" = "date", "Region" = "region")
+table_df <- data.frame(
+  cbind(tab_cols, tab_cols, 1), stringsAsFactors = FALSE
+)
+colnames(table_df) <- c("name", "ring_label", "rel_width")
+table_df$ring_label <- names(tab_cols)
+
+# Plotting parameters for metadata annotations
+tabv <- data.frame(
+  offs_s = 0.0033,                       # The distance between the tree and the first column
+  ann_yjust = 1.0, ann_xjust = 0.000001, # adjust the column header position
+  ann_vjust = 0.3, ann_hjust = 0,        # adjust the column header anchor
+  ann_size = 2,                          # Text size for column header
+  xdiff = 0.0013,                        # Space from one column to the next
+  size = 2                               # Text size for column values
+)
+
+# Calculate widths and positions for metadata columns
+table_df$width <- as.numeric(table_df$rel_width) * tabv$xdiff
+table_df$x_start <- cumsum(c(0, table_df$width[1:(nrow(table_df)-1)]))
+```
+
+## Create and Annotate Rectangular Tree
+
+```{r rectangular-tree-creation}
+# Create a rectangular tree with metadata columns
+p <- ggtree(rooted, layout="rectangular", right = FALSE, lwd=0.3) %<+% meta
+p <- p +
+  geom_tiplab(size=2, offset = 0.002, align = TRUE, linetype = NA) +
+  geom_tippoint(color="black", cex=0.5) +
+  xlim(-0.0001, 0.01) +
+  geom_treescale(width = 0.0001)
+
+# Add cluster labels
+for(i in 1:nrow(clusters))
+  p <- p + geom_cladelabel(
+    node = clusters$cl_mrca[i], label= clusters$SNPCluster[i],
+    barsize=0.5, color="black", offset.text=0, extend = 0.4, align = TRUE, fontsize = 4, offset = 0
+  )
+
+# Add cluster highlights
+q <- p + geom_hilight(
+  data = clusters, mapping=aes(node=cl_mrca, fill=SNPCluster),
+  extendto= max(p$data$x)
+) + scale_fill_manual("Lineage", values = cl_cols) +
+  theme(legend.position = 'None')
+```
+
+## Add Metadata Columns
+
+```{r add-metadata-to-tree}
+# Add metadata columns
+for(j in 1:nrow(table_df)) {
+  q <- q + geom_tiplab(
+    aes(label=.data[[table_df[j, "name"]]]), size=tabv$size, geom="text",
+    align=TRUE, linesize=0.05, linetype=NA, show.legend = FALSE,
+    offset=tabv$offs_s + table_df[j, "x_start"]
+  ) +
+    # Also add column headers
+    annotate(
+      geom="text", x=max(p$data$x) + tabv$offs_s + table_df[j, "x_start"] + tabv$ann_xjust,
+      y = max(p$data$y) + tabv$ann_yjust, label=table_df[j, "ring_label"],
+      size=tabv$ann_size, angle=0, vjust=tabv$ann_vjust, hjust=tabv$ann_hjust
+    )
+}
+```
+
+## Adjust Highlights
+
+```{r move-highlights-to-back2}
+# Adjust the order of highlighted layers
+r <- q %>% highlight_to_back()
+```
+
+## Plot the tree
+
+```{r plot-rectangular-tree}
+r
+```
+
+## Save the tree as pdf
+
+```{r save-rectangular-tree}
+ggsave(r, width = 12, height = 42, device = cairo_pdf,
+       file=file.path('./', paste0("Tree_rect_w_clusters_", Sys.Date(), ".pdf")),
+       family = "sans", bg=NA)
+```
