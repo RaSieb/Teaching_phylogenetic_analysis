@@ -54,7 +54,7 @@ meta
 ## Get tip dates
 
 ```{r get-tip-dates}
-tip.dates <- as.Date(meta[match(phy$tip.label, meta$strain), ]$date, format="%Y-%m-%d")
+tip.dates <- as.Date(meta[match(rooted$tip.label, meta$strain), ]$date, format="%Y-%m-%d")
 ```
 
 ## Get divergence from root
